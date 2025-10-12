@@ -3,7 +3,7 @@ import cv2
 import torch
 import numpy as np
 from torch.utils.data import Dataset
-import albumentations as A
+# import albumentations as A
 from torchvision import transforms as T
 from typing import List, Tuple
 import matplotlib.pyplot as plt
@@ -14,143 +14,143 @@ import pypose as pp
 from bisect import bisect_right
 
 
-class ImageKeypointsDataset(Dataset):
-    """
-    PyTorch Dataset class that:
-    1. Reads image files from provided paths
-    2. Converts images to PyTorch tensors
-    3. Extracts up to 100 GFTT keypoints, padding to 100 if fewer
-    4. Applies albumentations augmentations (geometric and photometric)
-    5. Computes transformed keypoints, finds correspondences, and provides a mask
-       for valid keypoints (strictly within image bounds: 0 <= x <= W-1, 0 <= y <= H-1)
-    Returns: original image, augmented image, original keypoints, augmented keypoints, mask
-    """
-    def __init__(
-        self,
-        image_paths: List[str],
-        max_corners: int = 80,
-        quality_level: float = 0.001,
-        min_distance: int = 10,
-        image_size: Tuple[int, int] = (640, 480)
-    ):
-        self.image_paths = image_paths
-        self.max_corners = max_corners
-        self.quality_level = quality_level
-        self.min_distance = min_distance
-        self.image_size = image_size
+# class ImageKeypointsDataset(Dataset):
+#     """
+#     PyTorch Dataset class that:
+#     1. Reads image files from provided paths
+#     2. Converts images to PyTorch tensors
+#     3. Extracts up to 100 GFTT keypoints, padding to 100 if fewer
+#     4. Applies albumentations augmentations (geometric and photometric)
+#     5. Computes transformed keypoints, finds correspondences, and provides a mask
+#        for valid keypoints (strictly within image bounds: 0 <= x <= W-1, 0 <= y <= H-1)
+#     Returns: original image, augmented image, original keypoints, augmented keypoints, mask
+#     """
+#     def __init__(
+#         self,
+#         image_paths: List[str],
+#         max_corners: int = 80,
+#         quality_level: float = 0.001,
+#         min_distance: int = 10,
+#         image_size: Tuple[int, int] = (640, 480)
+#     ):
+#         self.image_paths = image_paths
+#         self.max_corners = max_corners
+#         self.quality_level = quality_level
+#         self.min_distance = min_distance
+#         self.image_size = image_size
 
-        W, H = self.image_size
+#         W, H = self.image_size
 
-        # Define augmentation pipeline
-        self.transform = A.Compose(
-            [
-                # Geometric augmentations
-                A.Rotate(limit=3, p=0.0),
-                A.RandomScale(scale_limit=0.01, p=0.0),
-                A.ShiftScaleRotate(shift_limit=0.001, scale_limit=0.001, rotate_limit=1, p=1.0),
-                # Photometric augmentations
-                A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=1.0),
-                A.HueSaturationValue(hue_shift_limit=30, sat_shift_limit=40, val_shift_limit=30, p=1.0),
-                # A.GaussNoise(var_limit=(10.0, 50.0), p=0.0),
-                # 保证增强后的图像尺寸与原始一致
-                A.Resize(height=H, width=W, always_apply=True),
-            ],
-            keypoint_params=A.KeypointParams(format='xy', remove_invisible=False)
-        )
+#         # Define augmentation pipeline
+#         self.transform = A.Compose(
+#             [
+#                 # Geometric augmentations
+#                 A.Rotate(limit=3, p=0.0),
+#                 A.RandomScale(scale_limit=0.01, p=0.0),
+#                 A.ShiftScaleRotate(shift_limit=0.001, scale_limit=0.001, rotate_limit=1, p=1.0),
+#                 # Photometric augmentations
+#                 A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=1.0),
+#                 A.HueSaturationValue(hue_shift_limit=30, sat_shift_limit=40, val_shift_limit=30, p=1.0),
+#                 # A.GaussNoise(var_limit=(10.0, 50.0), p=0.0),
+#                 # 保证增强后的图像尺寸与原始一致
+#                 A.Resize(height=H, width=W, always_apply=True),
+#             ],
+#             keypoint_params=A.KeypointParams(format='xy', remove_invisible=False)
+#         )
 
-    def __len__(self) -> int:
-        return len(self.image_paths)
+#     def __len__(self) -> int:
+#         return len(self.image_paths)
 
-    def _load_and_preprocess_image(self, img_path: str) -> np.ndarray:
-        # Read image in RGB format
-        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        if img is None:
-            raise ValueError(f"无法读取图像: {img_path}")
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.resize(img, self.image_size)
-        return img
+#     def _load_and_preprocess_image(self, img_path: str) -> np.ndarray:
+#         # Read image in RGB format
+#         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+#         if img is None:
+#             raise ValueError(f"无法读取图像: {img_path}")
+#         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#         img = cv2.resize(img, self.image_size)
+#         return img
 
-    def _extract_keypoints(self, img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        # Convert to grayscale for GFTT
-        img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        corners = cv2.goodFeaturesToTrack(
-            img_gray,
-            maxCorners=self.max_corners,
-            qualityLevel=self.quality_level,
-            minDistance=self.min_distance
-        )
-        if corners is None:
-            keypoints = np.zeros((self.max_corners, 2), dtype=np.float32)
-            mask = np.zeros(self.max_corners, dtype=np.float32)
-        else:
-            keypoints = corners.squeeze(1)  # Shape: (P, 2)
-            P = len(keypoints)
-            # Pad keypoints to max_corners
-            if P < self.max_corners:
-                padded = np.zeros((self.max_corners, 2), dtype=np.float32)
-                padded[:P] = keypoints
-                keypoints = padded
-                mask = np.zeros(self.max_corners, dtype=np.float32)
-                mask[:P] = 1.0
-            else:
-                keypoints = keypoints[:self.max_corners]
-                mask = np.ones(self.max_corners, dtype=np.float32)
-        return keypoints, mask
+#     def _extract_keypoints(self, img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+#         # Convert to grayscale for GFTT
+#         img_gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+#         corners = cv2.goodFeaturesToTrack(
+#             img_gray,
+#             maxCorners=self.max_corners,
+#             qualityLevel=self.quality_level,
+#             minDistance=self.min_distance
+#         )
+#         if corners is None:
+#             keypoints = np.zeros((self.max_corners, 2), dtype=np.float32)
+#             mask = np.zeros(self.max_corners, dtype=np.float32)
+#         else:
+#             keypoints = corners.squeeze(1)  # Shape: (P, 2)
+#             P = len(keypoints)
+#             # Pad keypoints to max_corners
+#             if P < self.max_corners:
+#                 padded = np.zeros((self.max_corners, 2), dtype=np.float32)
+#                 padded[:P] = keypoints
+#                 keypoints = padded
+#                 mask = np.zeros(self.max_corners, dtype=np.float32)
+#                 mask[:P] = 1.0
+#             else:
+#                 keypoints = keypoints[:self.max_corners]
+#                 mask = np.ones(self.max_corners, dtype=np.float32)
+#         return keypoints, mask
 
-    def _augment_and_track_keypoints(
-        self, img: np.ndarray, keypoints: np.ndarray, orig_mask: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        # Apply augmentations
-        augmented = self.transform(image=img, keypoints=keypoints)
-        img_aug = augmented['image']
-        keypoints_aug = np.array(augmented['keypoints'], dtype=np.float32)
+#     def _augment_and_track_keypoints(
+#         self, img: np.ndarray, keypoints: np.ndarray, orig_mask: np.ndarray
+#     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+#         # Apply augmentations
+#         augmented = self.transform(image=img, keypoints=keypoints)
+#         img_aug = augmented['image']
+#         keypoints_aug = np.array(augmented['keypoints'], dtype=np.float32)
 
-        # Pad augmented keypoints to max_corners
-        if len(keypoints_aug) < self.max_corners:
-            padded = np.zeros((self.max_corners, 2), dtype=np.float32)
-            padded[:len(keypoints_aug)] = keypoints_aug
-            keypoints_aug = padded
-        else:
-            keypoints_aug = keypoints_aug[:self.max_corners]
+#         # Pad augmented keypoints to max_corners
+#         if len(keypoints_aug) < self.max_corners:
+#             padded = np.zeros((self.max_corners, 2), dtype=np.float32)
+#             padded[:len(keypoints_aug)] = keypoints_aug
+#             keypoints_aug = padded
+#         else:
+#             keypoints_aug = keypoints_aug[:self.max_corners]
 
-        # Create mask for augmented keypoints with strict bounds check (0 <= x <= W-1, 0 <= y <= H-1)
-        H, W = self.image_size
-        aug_mask = np.zeros(self.max_corners, dtype=np.float32)
-        valid_aug = (
-            (keypoints_aug[:, 0] >= 0) & (keypoints_aug[:, 0] <= W - 1) &
-            (keypoints_aug[:, 1] >= 0) & (keypoints_aug[:, 1] <= H - 1)
-        )
-        aug_mask[:len(valid_aug)] = valid_aug.astype(np.float32)
+#         # Create mask for augmented keypoints with strict bounds check (0 <= x <= W-1, 0 <= y <= H-1)
+#         H, W = self.image_size
+#         aug_mask = np.zeros(self.max_corners, dtype=np.float32)
+#         valid_aug = (
+#             (keypoints_aug[:, 0] >= 0) & (keypoints_aug[:, 0] <= W - 1) &
+#             (keypoints_aug[:, 1] >= 0) & (keypoints_aug[:, 1] <= H - 1)
+#         )
+#         aug_mask[:len(valid_aug)] = valid_aug.astype(np.float32)
 
-        # Combine masks: keypoint is valid only if it was originally valid and remains strictly in bounds
-        final_mask = orig_mask * aug_mask
+#         # Combine masks: keypoint is valid only if it was originally valid and remains strictly in bounds
+#         final_mask = orig_mask * aug_mask
 
-        # Optional: Clip augmented keypoints to bounds for visualization, but mask still filters them
-        # keypoints_aug = np.clip(keypoints_aug, [0, 0], [W - 1, H - 1])
+#         # Optional: Clip augmented keypoints to bounds for visualization, but mask still filters them
+#         # keypoints_aug = np.clip(keypoints_aug, [0, 0], [W - 1, H - 1])
 
-        return img_aug, keypoints_aug, final_mask
+#         return img_aug, keypoints_aug, final_mask
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        # Load and preprocess image
-        img = self._load_and_preprocess_image(self.image_paths[idx])
+#     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+#         # Load and preprocess image
+#         img = self._load_and_preprocess_image(self.image_paths[idx])
 
-        # Extract keypoints and initial mask
-        keypoints, orig_mask = self._extract_keypoints(img)
+#         # Extract keypoints and initial mask
+#         keypoints, orig_mask = self._extract_keypoints(img)
 
-        # Apply augmentations and track keypoints
-        img_aug, keypoints_aug, final_mask = self._augment_and_track_keypoints(img, keypoints, orig_mask)
+#         # Apply augmentations and track keypoints
+#         img_aug, keypoints_aug, final_mask = self._augment_and_track_keypoints(img, keypoints, orig_mask)
 
-        # Convert to PyTorch tensors
-        # Images: (C, H, W)
-        img_tensor = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
-        img_aug_tensor = torch.from_numpy(img_aug).permute(2, 0, 1).float() / 255.0
-        # Keypoints: (max_corners, 2)
-        keypoints_tensor = torch.from_numpy(keypoints).float()
-        keypoints_aug_tensor = torch.from_numpy(keypoints_aug).float()
-        # Mask: (max_corners,)
-        mask_tensor = torch.from_numpy(final_mask).float()
+#         # Convert to PyTorch tensors
+#         # Images: (C, H, W)
+#         img_tensor = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
+#         img_aug_tensor = torch.from_numpy(img_aug).permute(2, 0, 1).float() / 255.0
+#         # Keypoints: (max_corners, 2)
+#         keypoints_tensor = torch.from_numpy(keypoints).float()
+#         keypoints_aug_tensor = torch.from_numpy(keypoints_aug).float()
+#         # Mask: (max_corners,)
+#         mask_tensor = torch.from_numpy(final_mask).float()
 
-        return img_tensor, img_aug_tensor, keypoints_tensor, keypoints_aug_tensor, mask_tensor
+#         return img_tensor, img_aug_tensor, keypoints_tensor, keypoints_aug_tensor, mask_tensor
 
 
 def sort_files_by_prefix(folder: str):

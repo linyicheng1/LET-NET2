@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from model import LETNet
-from tartanair import ImageKeypointsDataset, TartanAir
+from tartanair import TartanAir
 from torch.utils.data import DataLoader
 from typing import List, Tuple
 import os
@@ -452,18 +452,8 @@ def train_letnet_with_diff_lk(
 
 
 def main():
-    # Example image paths (replace with actual paths)
-    image_paths = [
-        "/home/server/linyicheng/HyperVOTrain/Model/img/1.JPG",
-        "/home/server/linyicheng/HyperVOTrain/Model/img/2.JPG",
-    ]
 
-    path_lists = [
-        "/media/server/4cda377d-28db-4424-921c-6a1e0545ceeb/4cda377d-28db-4424-921c-6a1e0545ceeb/Dataset/tartanair/train/abandonedfactory/Hard/P000"
-    ]
-    
-
-    base_path = "/media/server/4cda377d-28db-4424-921c-6a1e0545ceeb/4cda377d-28db-4424-921c-6a1e0545ceeb/4cda377d-28db-4424-921c-6a1e0545ceeb/Dataset/tartanair/train/"
+    base_path = "/home/data/"
     path_list = [
         "abandonedfactory/Hard",
         # "abandonedfactory/Easy",
