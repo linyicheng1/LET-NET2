@@ -2,7 +2,7 @@
 
 LET-NET2 transforms the traditional LK optical flow process into a neural network layer by computing its derivatives, enabling end-to-end training of sparse optical flow. It preserves the original lightweight network structure and, during training on simulated datasets, autonomously learns capabilities such as edge orientation extraction and active enhancement of weak-texture regions. As a result, it demonstrates stronger tracking performance under challenging conditions, including dynamic lighting, weak textures, low illumination, and underwater blur.
 
-## Effect of Tracking Region Comparison on Weak-Texture and Low-Light Performance
+## Tracking Region Comparison for Improved Performance in Weak-Texture and Low-Light Conditions
 
 
 <table align="center">
