@@ -127,4 +127,44 @@ python3 train.py
 ## VINS-Fusion Integration
 
 
+### Docker Build 
 
+```shell
+cd LET-NET2/VINS
+docker build . -t let_vins
+```
+
+
+### Run Docker 
+
+```shell
+docker run -it --gpus all -v ${CODE_DIR}/LET-NET2/VINS:/home/code/src -v ${DATA_DIR}/euroc/:/home/data/ --net=host --env ROS_MASTER_URI=http://localhost:11311 --env ROS_IP=$(hostname -I | awk '{print $1}') let_vins:latest 
+```
+
+my sample
+
+```shell
+docker run -it --gpus all -v /home/server/linyicheng/LETNET2/LET-NET2/VINS:/home/code/src -v /media/server/4cda377d-28db-4424-921c-6a1e0545ceeb/4cda377d-28db-4424-921c-6a1e0545ceeb/4cda377d-28db-4424-921c-6a1e0545ceeb/Dataset/euroc/:/home/data/ --net=host --env ROS_MASTER_URI=http://localhost:11311 --env ROS_IP=$(hostname -I | awk '{print $1}') let_vins:latest 
+```
+
+### Build LET-VINS 
+
+```shell
+cd /home/code/ && catkin_make
+```
+
+### Run LET-VINS 
+
+```shell
+source devel/setup.bash
+rosrun vins vins_node src/VINS-Fusion/config/euroc/euroc_stereo_imu_config.yaml
+```
+
+play rosbag 
+
+
+```shell
+source /opt/ros/melodic/setup.bash
+cd /home/data/
+rosbag play MH_05_difficult.bag
+```
