@@ -71,11 +71,11 @@ void FeatureTracker::load_model()
 {
     if (FLOW_TYPE == LEARNED_FLOW)
     {
-        encoder_ = std::make_shared<TRTInferV3>(ENCODER_PATH);
-        refine_ = std::make_shared<SparsFlowTRT>(REFINE_PATH);
+        // encoder_ = std::make_shared<TRTInferV3>(ENCODER_PATH);
+        // refine_ = std::make_shared<SparsFlowTRT>(REFINE_PATH);
     }
-    lk_encoder_ = std::make_shared<LKFlowInfer>("/home/linyi/VO/HyperVOTrain/weights/SparseFlow_lk_752.engine");
-    let_net_ = std::make_shared<LETFlowInfer>("/home/linyi/VO/HyperVOTrain/weights/let2_752.engine");
+    // lk_encoder_ = std::make_shared<LKFlowInfer>("/home/linyi/VO/HyperVOTrain/weights/SparseFlow_lk_752.engine");
+    let_net_ = std::make_shared<LETFlowInfer>(ENCODER_PATH);
 }
 
 void FeatureTracker::setMask()

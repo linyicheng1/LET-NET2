@@ -1,6 +1,9 @@
 tmp/
 __pycache__/
 *.png
-*.pth
+/*.pth
+VINS/VINS-Fusion/weight/*.onnx
+VINS/VINS-Fusion/weight/*.pth
+VINS/VINS-Fusion/weight/*.engine
 VINS/CMakeLists.txt
 

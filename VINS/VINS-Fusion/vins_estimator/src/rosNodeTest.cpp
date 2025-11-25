@@ -239,6 +239,7 @@ int main(int argc, char **argv)
     printf("config_file: %s\n", argv[1]);
 
     readParameters(config_file);
+    estimator.featureTracker.load_model();
     estimator.setParameter();
 
 #ifdef EIGEN_DONT_PARALLELIZE

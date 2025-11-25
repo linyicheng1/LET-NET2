@@ -15,7 +15,7 @@ cam1_calib: "cam1_mei.yaml"
 image_width: 752
 image_height: 480
 
-encoder_path: "/home/linyi/VO/HyperVOTrain/weights/SparseFlow_gru_752.engine"
+encoder_path: "/home/code/src/VINS-Fusion/weight/let2_752.engine"
 refine_path: "/home/linyi/VO/HyperVOTrain/weights/SparseFlow_refine_gru_752.engine"
 flow_type: 2
 
