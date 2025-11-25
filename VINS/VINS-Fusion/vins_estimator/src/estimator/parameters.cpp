@@ -8,6 +8,7 @@
  *******************************************************/
 
 #include "parameters.h"
+#include <Eigen/Dense>
 
 double INIT_DEPTH;
 double MIN_PARALLAX;
@@ -46,6 +47,11 @@ double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
 
+std::string ENCODER_PATH;
+std::string REFINE_PATH;
+int FLOW_TYPE;
+
+
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -78,6 +84,13 @@ void readParameters(std::string config_file)
     {
         std::cerr << "ERROR: Wrong path to settings" << std::endl;
     }
+
+    fsSettings["encoder_path"] >> ENCODER_PATH;
+    fsSettings["refine_path"] >> REFINE_PATH;
+    FLOW_TYPE = fsSettings["flow_type"];
+    std::cout<<"encoder_path " <<ENCODER_PATH<<std::endl;
+    std::cout<<"refine_path " <<REFINE_PATH<<std::endl;
+    std::cout<<"flow_type " <<FLOW_TYPE<<std::endl;
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
@@ -135,8 +148,11 @@ void readParameters(std::string config_file)
         fsSettings["body_T_cam0"] >> cv_T;
         Eigen::Matrix4d T;
         cv::cv2eigen(cv_T, T);
-        RIC.push_back(T.block<3, 3>(0, 0));
-        TIC.push_back(T.block<3, 1>(0, 3));
+        // TODO@ADD inverse 
+        Eigen::Matrix4d invT = T;//.inverse();
+        // std::cout<<"invT"<<invT<<std::endl;
+        RIC.push_back(invT.block<3, 3>(0, 0));
+        TIC.push_back(invT.block<3, 1>(0, 3));
     } 
     
     NUM_OF_CAM = fsSettings["num_of_cam"];
@@ -170,8 +186,11 @@ void readParameters(std::string config_file)
         fsSettings["body_T_cam1"] >> cv_T;
         Eigen::Matrix4d T;
         cv::cv2eigen(cv_T, T);
-        RIC.push_back(T.block<3, 3>(0, 0));
-        TIC.push_back(T.block<3, 1>(0, 3));
+        // TODO@ADD inverse 
+        Eigen::Matrix4d invT = T;//.inverse();
+        // std::cout<<"invT"<<invT<<std::endl;
+        RIC.push_back(invT.block<3, 3>(0, 0));
+        TIC.push_back(invT.block<3, 1>(0, 3));
     }
 
     INIT_DEPTH = 5.0;

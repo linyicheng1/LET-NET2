@@ -11,6 +11,21 @@
 
 #include "feature_tracker.h"
 
+
+double get_weight(uchar pixel) {
+    double w = 0.5;
+    // double min = 3;
+    // double max = 50;
+    // if (pixel <= min) {
+    //     w = 1.0;
+    // } else if (pixel >= max) {
+    //     w = 0.1;
+    // } else {
+    //     w = (max - pixel) / (max - min) + 0.1;
+    // }
+    return w*2;
+}
+
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
     const int BORDER_SIZE = 1;
@@ -50,6 +65,17 @@ FeatureTracker::FeatureTracker()
     stereo_cam = 0;
     n_id = 0;
     hasPrediction = false;
+}
+
+void FeatureTracker::load_model()
+{
+    if (FLOW_TYPE == LEARNED_FLOW)
+    {
+        encoder_ = std::make_shared<TRTInferV3>(ENCODER_PATH);
+        refine_ = std::make_shared<SparsFlowTRT>(REFINE_PATH);
+    }
+    lk_encoder_ = std::make_shared<LKFlowInfer>("/home/linyi/VO/HyperVOTrain/weights/SparseFlow_lk_752.engine");
+    let_net_ = std::make_shared<LETFlowInfer>("/home/linyi/VO/HyperVOTrain/weights/let2_752.engine");
 }
 
 void FeatureTracker::setMask()
@@ -107,6 +133,39 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             clahe->apply(rightImg, rightImg);
     }
     */
+    if (FLOW_TYPE == LEARNED_FLOW){
+        cv::Mat f0;
+        cur_img.convertTo(f0, CV_32FC1, 1.0f/255);
+        cur_feat.resize(6);
+        // encoder_->infer(f0, cur_feat[0], cur_feat[1], cur_feat[2], cur_feat[3], cur_feat[4], cur_feat[5]);
+        lk_encoder_->infer(f0, cur_lk_feat);
+        lk_encoder_->build_pyr(cur_lk_feat, cur_lk_pyr);
+    } else if (FLOW_TYPE == LET_FLOW) {
+        cv::Mat bgr;
+        cv::cvtColor(cur_img, bgr, cv::COLOR_GRAY2BGR);
+        bgr.convertTo(bgr, CV_32FC3);
+        cv::Mat output = let_net_->infer(bgr);
+        cv::Mat out_u3;
+        output.convertTo(cur_let_feat, CV_8UC4);
+        // cur_let_feat = out_u3.clone();
+        cv::cvtColor(cur_let_feat, cur_let_feat, cv::COLOR_RGBA2BGR);
+        // cv::imwrite("out.png", cur_let_feat);
+        // cur_let_feat = cv::imread("out.png");
+    } else if (FLOW_TYPE == LET_COV) {
+        cv::Mat bgr;
+        cv::cvtColor(cur_img, bgr, cv::COLOR_GRAY2BGR);
+        bgr.convertTo(bgr, CV_32FC3);
+        cv::Mat output, output_cov;
+        let_net_->infer2(bgr, output_cov, output);
+        
+        output.convertTo(output, CV_8UC3);
+        output_cov.convertTo(cur_cov, CV_8UC1);
+        GaussianBlur(cur_cov, cur_cov, cv::Size(5, 5), 1.5, 1.5);
+        cur_let_feat = output.clone();
+        // cv::imwrite("out.png", cur_let_feat);
+        // cv::imwrite("cov.png", cur_cov);
+    }
+
     cur_pts.clear();
 
     if (prev_pts.size() > 0)
@@ -117,28 +176,61 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         if(hasPrediction)
         {
             cur_pts = predict_pts;
-            cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1, 
-            cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
-            
+            if (FLOW_TYPE == OP_FLOW) {
+                cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1,
+                    cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+            } else if (FLOW_TYPE == LEARNED_FLOW) {
+                calcOpticalFlowLearned(prev_feat, cur_feat, prev_pts, cur_pts, status);
+            } else if (FLOW_TYPE == LET_FLOW || FLOW_TYPE == LET_COV) {
+                cv::calcOpticalFlowPyrLK(prev_let_feat, cur_let_feat, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1,
+                    cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW); 
+            }
+
             int succ_num = 0;
             for (size_t i = 0; i < status.size(); i++)
             {
                 if (status[i])
                     succ_num++;
             }
-            if (succ_num < 10)
-               cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+            if (succ_num < 10) {
+                if (FLOW_TYPE == OP_FLOW) {
+                    cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+                } else if (FLOW_TYPE == LEARNED_FLOW) {
+                    calcOpticalFlowLearned(prev_feat, cur_feat, prev_pts, cur_pts, status);
+                } else if (FLOW_TYPE == LET_FLOW || FLOW_TYPE == LET_COV) {
+                    cv::calcOpticalFlowPyrLK(prev_let_feat, cur_let_feat, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+                }
+            }
         }
-        else
-            cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+        else {
+            if (FLOW_TYPE == OP_FLOW) {
+                cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+            } else if (FLOW_TYPE == LEARNED_FLOW) {
+                // cur_pts = prev_pts;
+                // TODO ADD
+                cv::calcOpticalFlowPyrLK(prev_lk_pyr, cur_lk_pyr, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+                // calcOpticalFlowLearned(prev_feat, cur_feat, prev_pts, cur_pts, status);
+                // calcOpticalFlowLearned(kf_feat, cur_feat, kf_pts, cur_pts, status);
+            } else if (FLOW_TYPE == LET_FLOW || FLOW_TYPE == LET_COV) {
+                cv::calcOpticalFlowPyrLK(prev_let_feat, cur_let_feat, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3); 
+            }
+        }
         // reverse check
         if(FLOW_BACK)
         {
             vector<uchar> reverse_status;
             vector<cv::Point2f> reverse_pts = prev_pts;
-            cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1, 
-            cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
-            //cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 3); 
+            if (FLOW_TYPE == OP_FLOW) {
+                cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1,
+                    cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+            } else if (FLOW_TYPE == LEARNED_FLOW) {
+                cv::calcOpticalFlowPyrLK(cur_lk_pyr, prev_lk_pyr, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1,
+                    cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+            } else if (FLOW_TYPE == LET_FLOW || FLOW_TYPE == LET_COV) {
+                cv::calcOpticalFlowPyrLK(cur_let_feat, prev_let_feat, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1,
+                    cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+            }
+            //cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 3);
             for(size_t i = 0; i < status.size(); i++)
             {
                 if(status[i] && reverse_status[i] && distance(prev_pts[i], reverse_pts[i]) <= 0.5)
@@ -155,6 +247,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                 status[i] = 0;
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
+        // TODO ADD
+        reduceVector(kf_pts, status);
         reduceVector(ids, status);
         reduceVector(track_cnt, status);
         ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
@@ -175,7 +269,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         ROS_DEBUG("detect feature begins");
         TicToc t_t;
         int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());
-        if (n_max_cnt > 0)
+        if (n_max_cnt > 20)
         {
             if(mask.empty())
                 cout << "mask is empty " << endl;
@@ -193,6 +287,11 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             ids.push_back(n_id++);
             track_cnt.push_back(1);
         }
+        // TODO ADD
+        if (!n_pts.empty()) {
+            kf_feat = cur_feat;
+            kf_pts = cur_pts;
+        }
         //printf("feature cnt after add %d\n", (int)ids.size());
     }
 
@@ -209,15 +308,59 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         if(!cur_pts.empty())
         {
             //printf("stereo image; track feature on right image\n");
+            if (FLOW_TYPE == LEARNED_FLOW)
+            {
+                cv::Mat f1;
+                rightImg.convertTo(f1, CV_32FC1, 1.0f/255);
+                lk_encoder_->infer(f1, right_lk_feat);
+                lk_encoder_->build_pyr(right_lk_feat, right_lk_pyr);
+            } 
+            else if (FLOW_TYPE == LET_FLOW) 
+            {
+                cv::Mat bgr;
+                cv::cvtColor(rightImg, bgr, cv::COLOR_GRAY2BGR);
+                bgr.convertTo(bgr, CV_32FC3);
+                cv::Mat output = let_net_->infer(bgr);
+                cv::Mat out_u3;
+                output.convertTo(right_let_feat, CV_8UC4);
+                // right_let_feat = out_u3.clone();
+                cv::cvtColor(right_let_feat, right_let_feat, cv::COLOR_RGB2BGR);
+            } 
+            else if (FLOW_TYPE == LET_COV)
+            {
+                cv::Mat bgr;
+                cv::cvtColor(rightImg, bgr, cv::COLOR_GRAY2BGR);
+                bgr.convertTo(bgr, CV_32FC3);
+                cv::Mat output, output_cov;
+                let_net_->infer2(bgr, output_cov, output);
+                output.convertTo(right_let_feat, CV_8UC3);
+            }
+
             vector<cv::Point2f> reverseLeftPts;
             vector<uchar> status, statusRightLeft;
             vector<float> err;
             // cur left ---- cur right
-            cv::calcOpticalFlowPyrLK(cur_img, rightImg, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
+            if (FLOW_TYPE == OP_FLOW) {
+                cv::calcOpticalFlowPyrLK(cur_img, rightImg, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
+            } else if (FLOW_TYPE == LEARNED_FLOW) {
+                // cur_right_pts = cur_pts;
+                // calcOpticalFlowLearned(cur_feat, right_feat, cur_pts, cur_right_pts, status);
+                cv::calcOpticalFlowPyrLK(cur_lk_pyr, right_lk_pyr, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
+            } else if (FLOW_TYPE == LET_FLOW || FLOW_TYPE == LET_COV) {
+                cv::calcOpticalFlowPyrLK(cur_let_feat, right_let_feat, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
+            }
+
             // reverse check cur right ---- cur left
             if(FLOW_BACK)
             {
-                cv::calcOpticalFlowPyrLK(rightImg, cur_img, cur_right_pts, reverseLeftPts, statusRightLeft, err, cv::Size(21, 21), 3);
+                if (FLOW_TYPE == OP_FLOW) {
+                    cv::calcOpticalFlowPyrLK(rightImg, cur_img, cur_right_pts, reverseLeftPts, statusRightLeft, err, cv::Size(21, 21), 3);
+                } else if (FLOW_TYPE == LEARNED_FLOW) {
+                    // calcOpticalFlowLearned(rightImg, cur_img, cur_right_pts, reverseLeftPts, statusRightLeft);
+                    cv::calcOpticalFlowPyrLK(right_lk_pyr, cur_lk_pyr, cur_right_pts, reverseLeftPts, statusRightLeft, err, cv::Size(21, 21), 3);
+                } else if (FLOW_TYPE == LET_FLOW || FLOW_TYPE == LET_COV) {
+                    cv::calcOpticalFlowPyrLK(right_let_feat, cur_let_feat, cur_right_pts, reverseLeftPts, statusRightLeft, err, cv::Size(21, 21), 3);
+                }
                 for(size_t i = 0; i < status.size(); i++)
                 {
                     if(status[i] && statusRightLeft[i] && inBorder(cur_right_pts[i]) && distance(cur_pts[i], reverseLeftPts[i]) <= 0.5)
@@ -243,10 +386,25 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         }
         prev_un_right_pts_map = cur_un_right_pts_map;
     }
+    std::vector<double> weights_show;
+    for (const auto&pt:cur_pts) {
+        double p_u = pt.x;
+        double p_v = pt.y;
+
+        // uchar pixel = cur_cov.at<uchar>(static_cast<int>(p_v), static_cast<int>(p_u));
+        double w = 1;//get_weight(pixel);
+        weights_show.emplace_back(w);
+    }
+
     if(SHOW_TRACK)
-        drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
+        drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap, weights_show);
 
     prev_img = cur_img;
+    prev_feat = cur_feat;
+    prev_lk_pyr.swap(cur_lk_pyr);
+
+    prev_let_feat = cur_let_feat;
+
     prev_pts = cur_pts;
     prev_un_pts = cur_un_pts;
     prev_un_pts_map = cur_un_pts_map;
@@ -273,6 +431,10 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         velocity_x = pts_velocity[i].x;
         velocity_y = pts_velocity[i].y;
 
+        // weight 
+        // uchar pixel = cur_cov.at<uchar>(static_cast<int>(p_v), static_cast<int>(p_u));
+        double w = 1; // get_weight(pixel);
+
         Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
@@ -294,6 +456,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             double velocity_x, velocity_y;
             velocity_x = right_pts_velocity[i].x;
             velocity_y = right_pts_velocity[i].y;
+
+            // uchar pixel = cur_cov.at<uchar>(static_cast<int>(p_v), static_cast<int>(p_u));
+            double w = 1; //  get_weight(pixel);
 
             Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
             xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
@@ -445,7 +610,8 @@ void FeatureTracker::drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight,
                                vector<int> &curLeftIds,
                                vector<cv::Point2f> &curLeftPts, 
                                vector<cv::Point2f> &curRightPts,
-                               map<int, cv::Point2f> &prevLeftPtsMap)
+                               map<int, cv::Point2f> &prevLeftPtsMap,
+                               vector<double> weights)
 {
     //int rows = imLeft.rows;
     int cols = imLeft.cols;
@@ -453,12 +619,16 @@ void FeatureTracker::drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight,
         cv::hconcat(imLeft, imRight, imTrack);
     else
         imTrack = imLeft.clone();
-    cv::cvtColor(imTrack, imTrack, CV_GRAY2RGB);
+    cv::cvtColor(imTrack, imTrack, cv::COLOR_GRAY2RGB);
 
     for (size_t j = 0; j < curLeftPts.size(); j++)
     {
         double len = std::min(1.0, 1.0 * track_cnt[j] / 20);
-        cv::circle(imTrack, curLeftPts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), 2);
+        double size = 1 + weights[j] * 4;
+        cv::circle(imTrack, curLeftPts[j], 2, cv::Scalar(255 * (1 - len), 0, 255 * len), size);
+        if (j % 10 ==0) {
+            std::cout<<"size "<<size<<std::endl;
+        }
     }
     if (!imRight.empty() && stereo_cam)
     {
@@ -543,4 +713,27 @@ void FeatureTracker::removeOutliers(set<int> &removePtsIds)
 cv::Mat FeatureTracker::getTrackImage()
 {
     return imTrack;
+}
+
+void FeatureTracker::calcOpticalFlowLearned(const std::vector<std::vector<float>>& prevFeature,
+                                const std::vector<std::vector<float>>& nextFeature,
+                                const std::vector<cv::Point2f> prevPts,
+                                std::vector<cv::Point2f>& nextPts,
+                                std::vector<uchar>& status) const {
+    std::vector<cv::Point2f> match_pts;
+    std::vector<uchar> vStatus;
+    status.clear();
+    refine_->infer(prevFeature[0], nextFeature[0], prevFeature[3],
+        prevFeature[1], nextFeature[1], prevFeature[4],
+        prevFeature[2], nextFeature[2], prevFeature[5],
+        prevPts, nextPts, match_pts, vStatus);
+    int num = 0;
+    for (int i = 0;i < nextPts.size(); i++) {
+        nextPts[i] = match_pts[i];
+        status.emplace_back(vStatus[i]);
+        if (vStatus[i] > 0.5) {
+            num ++;
+        }
+    }
+    // std::cout<<"num:"<<num<<std::endl;
 }
