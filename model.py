@@ -93,7 +93,7 @@ class LETNet(nn.Module):
             self.block1 = ConvBlock(3, c1, self.gate, nn.BatchNorm2d)
         self.conv1 = resnet.conv1x1(c1, c2)
         # ================================== detector and descriptor head
-        self.conv_head = resnet.conv1x1(c2, 4)
+        self.conv_head = resnet.conv1x1(c2, 3)
 
     def forward(self, x: torch.Tensor):
         # ================================== feature encoder
