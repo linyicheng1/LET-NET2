@@ -67,6 +67,7 @@ extern int FLOW_BACK;
 extern std::string ENCODER_PATH;
 extern std::string REFINE_PATH;
 extern int FLOW_TYPE;
+extern int GRAY_NET;
 
 #define OP_FLOW 0
 #define LEARNED_FLOW 1

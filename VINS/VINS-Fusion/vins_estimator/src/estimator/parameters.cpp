@@ -50,7 +50,7 @@ int FLOW_BACK;
 std::string ENCODER_PATH;
 std::string REFINE_PATH;
 int FLOW_TYPE;
-
+int GRAY_NET;
 
 
 template <typename T>
@@ -88,9 +88,11 @@ void readParameters(std::string config_file)
     fsSettings["encoder_path"] >> ENCODER_PATH;
     fsSettings["refine_path"] >> REFINE_PATH;
     FLOW_TYPE = fsSettings["flow_type"];
+    GRAY_NET = fsSettings["gray_net"];
     std::cout<<"encoder_path " <<ENCODER_PATH<<std::endl;
     std::cout<<"refine_path " <<REFINE_PATH<<std::endl;
     std::cout<<"flow_type " <<FLOW_TYPE<<std::endl;
+    std::cout<<"gray_net " <<GRAY_NET<<std::endl;
 
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;

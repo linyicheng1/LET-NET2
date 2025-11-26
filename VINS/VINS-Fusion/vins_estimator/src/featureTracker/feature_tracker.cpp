@@ -146,10 +146,10 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         bgr.convertTo(bgr, CV_32FC3);
         cv::Mat output = let_net_->infer(bgr);
         cv::Mat out_u3;
-        output.convertTo(cur_let_feat, CV_8UC4);
+        output.convertTo(cur_let_feat, CV_8UC3);
         // cur_let_feat = out_u3.clone();
-        cv::cvtColor(cur_let_feat, cur_let_feat, cv::COLOR_RGBA2BGR);
-        // cv::imwrite("out.png", cur_let_feat);
+        cv::cvtColor(cur_let_feat, cur_let_feat, cv::COLOR_RGB2BGR);
+        cv::imwrite("out.png", cur_let_feat);
         // cur_let_feat = cv::imread("out.png");
     } else if (FLOW_TYPE == LET_COV) {
         cv::Mat bgr;
@@ -322,7 +322,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
                 bgr.convertTo(bgr, CV_32FC3);
                 cv::Mat output = let_net_->infer(bgr);
                 cv::Mat out_u3;
-                output.convertTo(right_let_feat, CV_8UC4);
+                output.convertTo(right_let_feat, CV_8UC3);
                 // right_let_feat = out_u3.clone();
                 cv::cvtColor(right_let_feat, right_let_feat, cv::COLOR_RGB2BGR);
             } 
@@ -403,7 +403,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     prev_feat = cur_feat;
     prev_lk_pyr.swap(cur_lk_pyr);
 
-    prev_let_feat = cur_let_feat;
+    prev_let_feat = cur_let_feat.clone();
 
     prev_pts = cur_pts;
     prev_un_pts = cur_un_pts;

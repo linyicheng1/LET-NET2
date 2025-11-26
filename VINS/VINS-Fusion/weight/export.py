@@ -93,10 +93,7 @@ class LETNet(nn.Module):
             self.block1 = ConvBlock(3, c1, self.gate, nn.BatchNorm2d)
         self.conv1 = resnet.conv1x1(c1, c2)
         # ================================== detector and descriptor head
-        if grayscale:
-            self.conv_head = resnet.conv1x1(c2, 2)
-        else:
-            self.conv_head = resnet.conv1x1(c2, 4)
+        self.conv_head = resnet.conv1x1(c2, 3)
 
     # def forward(self, x: torch.Tensor):
     #     x = x.permute(0, 3, 1, 2) / 255.
@@ -115,6 +112,8 @@ class LETNet(nn.Module):
     #     return descriptor*255.
     def forward(self, x: torch.Tensor):
         x = x.permute(0, 3, 1, 2) / 255.
+        # to gray 
+        x = x[:, 0:1]
         # ================================== feature encoder
         block = self.block1(x)
         x1 = self.gate(self.conv1(block))
@@ -127,15 +126,16 @@ class LETNet(nn.Module):
 
         descriptor = descriptor.permute(0, 2, 3, 1)
         # score_map = score_map.permute(0, 2, 3, 1)
-        descriptor = descriptor[..., [2, 1, 0, 3]]
+        # descriptor = descriptor[..., [2, 1, 0, 3]]
         # descriptor = descriptor[..., [3, 2, 1, 0]]
         return descriptor*255.
 
 # 编码器模型
-net = LETNet(c1=8, c2=16, grayscale=False)
+net = LETNet(c1=8, c2=16, grayscale=True)
 # net.load_state_dict(torch.load("../weights/letnet_model.pth"))
 # net.load_state_dict(torch.load("../weights/letnet2.pth"))
-net.load_state_dict(torch.load("letnet2.pth"))
+net.load_state_dict(torch.load("last_model.pth"))
+print("load success !")
 
 def export_onnx(model, H, W, save_path):
     device = torch.device("cpu")
@@ -220,7 +220,7 @@ def export_tensorrt(onnx_path, trt_path, input_shape, fp16=True):
 
 def export_pipeline(H, W, batch_size=1):
     onnx_path = "let2.onnx"
-    trt_path = "let2_752.engine"
+    trt_path = "let2_752_gray.engine"
 
     # 固定输入形状（批处理大小 x 通道数 x 高度 x 宽度）
     input_shape = (batch_size, H, W, 3)

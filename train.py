@@ -240,7 +240,8 @@ def train_letnet_with_diff_lk(
         window_size: int = 21,
         num_lk_iter: int = 30,
         checkpoint_path: str = None,  # 可选：加载权重初始化,
-        uncertainty_weight: float = 1e-6  # 不确定度损失的权重
+        uncertainty_weight: float = 1e-6,  # 不确定度损失的权重
+        gray: bool = False
 ):
     """
     Training LETNet with differentiable Lucas-Kanade flow estimation,
@@ -253,7 +254,7 @@ def train_letnet_with_diff_lk(
         quality_level=0.001,
         min_distance=10,
         image_size=image_size,
-        gray=True
+        gray=gray
     )
     # dataset = ImageKeypointsDataset(
     #     image_paths=image_paths,
@@ -266,7 +267,7 @@ def train_letnet_with_diff_lk(
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     # Initialize model, loss, optimizer
-    model = LETNet(c1=8, c2=16, grayscale=True).to(device)
+    model = LETNet(c1=8, c2=16, grayscale=gray).to(device)
 
     # 可选加载已有权重
     if checkpoint_path is not None and os.path.exists(checkpoint_path):

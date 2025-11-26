@@ -1038,7 +1038,7 @@ cv::Mat LETFlowInfer::infer(const cv::Mat& input) {
         int outW = d.d[2];
         int C = d.d[3];
 
-        if (N != 1 || outH != H || outW != W || C != 4) {
+        if (N != 1 || outH != H || outW != W || C != 3) {
             throw std::runtime_error("Unexpected output shape");
         }
 
@@ -1047,7 +1047,7 @@ cv::Mat LETFlowInfer::infer(const cv::Mat& input) {
         cudaMemcpy(output_buffer.data(), buffers[i], outSize * sizeof(float), cudaMemcpyDeviceToHost);
 
         // Output is already in NHWC layout, so directly create cv::Mat
-        cv::Mat output(outH, outW, CV_32FC4, output_buffer.data());
+        cv::Mat output(outH, outW, CV_32FC3, output_buffer.data());
 
         // Return a clone to avoid buffer issues
         return output.clone();
