@@ -1,0 +1,59 @@
+%YAML:1.0
+
+#common parameters
+#support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
+imu: 0         
+num_of_cam: 2  
+
+imu_topic: "/imu0"
+image0_topic: "/cam0/image_raw"
+image1_topic: "/cam1/image_raw"
+output_path: "/home/tony-ws1/output/"
+
+cam0_calib: "cam0_pinhole2.yaml"
+cam1_calib: "cam1_pinhole2.yaml"
+image_width: 512
+image_height: 384
+
+encoder_path: "/home/linyi/VO/HyperVOTrain/weights/SparseFlow_gru_752.engine"
+refine_path: "/home/linyi/VO/HyperVOTrain/weights/SparseFlow_refine_gru_752.engine"
+flow_type: 0
+   
+
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+                        # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
+
+body_T_cam0: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: d
+  data: [0.99998651003287, 0.00182615045541887, 0.004862604939401894, -0.11842430675006582,
+         -0.0018177951894695365, 0.9999968649306907, -0.0017221351400740366, 0.0008231093930239588,
+         -0.0048657345726687215, 0.0017132726886604664, 0.999986694573365, -0.0006991291443189622,
+         0., 0., 0., 1.]
+
+body_T_cam1: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: d
+  data: [1., 0., 0., 0.,
+         0., 1., 0., 0.,
+         0., 0., 1., 0.,
+         0., 0., 0., 1.]
+
+#Multiple thread support
+multiple_thread: 1
+
+#feature traker paprameters
+max_cnt: 150            # max feature number in feature tracking
+min_dist: 30            # min distance between two features 
+freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+F_threshold: 1.0        # ransac threshold (pixel)
+show_track: 1           # publish tracking image as topic
+flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
+
+#optimization parameters
+max_solver_time: 0.04  # max solver itration time (ms), to guarantee real time
+max_num_iterations: 8   # max solver itrations, to guarantee real time
+keyframe_parallax: 10.0 # keyframe selection threshold (pixel)

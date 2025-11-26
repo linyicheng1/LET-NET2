@@ -1,0 +1,83 @@
+%YAML:1.0
+
+#common parameters
+#support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
+imu: 1         
+num_of_cam: 1
+
+imu_topic: "/imu0"
+image0_topic: "/cam0/image_raw"
+image1_topic: "/cam1/image_raw"
+output_path: "~/output/"
+
+cam0_calib: "cam0_pinhole3.yaml"
+cam1_calib: "cam1_pinhole3.yaml"
+image_width: 752
+image_height: 480
+
+encoder_path: "/home/linyi/VO/HyperVOTrain/weights/SparseFlow_gru_752.engine"
+refine_path: "/home/linyi/VO/HyperVOTrain/weights/SparseFlow_refine_gru_752.engine"
+flow_type: 1
+
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+                        # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
+
+# body_T_cam0: !!opencv-matrix
+#   rows: 4
+#   cols: 4
+#   dt: d
+#   data: [-0.9999075129222311, 0.009129044547616321, 0.010080979482447605, 0.04494077481347731,
+#          -0.009349824313881894, -0.9997125937593437, -0.022075114139336903, 0.11756299478603587,
+#          0.009876557445660702, -0.022167327863611475, 0.9997054882256121, 0.009662092028551384,
+#          0., 0., 0., 1.]
+
+body_T_cam0: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: d
+  data: [-0.9996891001069981, -0.024321238097913023, 0.005493678607751144, 0.11425322792996404,
+         0.024372821606514775, -0.9996575482196979, 0.009526376767667806, -0.013218431734117795,
+         0.005260104010154635, 0.009657311466820284, 0.9999395319923278, -0.03159608818108305,
+         0.0, 0.0, 0.0, 1.0]
+
+body_T_cam1: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: d
+  data: [-0.99928212777046, 0.035925730341547904, 0.012023768875391022, -0.13962875158190605,
+         -0.03597274136607859, -0.9993458604025864, -0.003716607972848024, -0.016508639410168793,
+         0.011882381796241693, -0.004146467851196176, 0.9999208047676615, -0.03160895767861787,
+         0.0, 0.0, 0.0, 1.]
+
+#Multiple thread support
+multiple_thread: 1
+
+#feature traker paprameters
+max_cnt: 150            # max feature number in feature tracking
+min_dist: 30            # min distance between two features 
+freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+F_threshold: 1.0        # ransac threshold (pixel)
+show_track: 1           # publish tracking image as topic
+flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
+
+#optimization parameters
+max_solver_time: 0.04  # max solver itration time (ms), to guarantee real time
+max_num_iterations: 8   # max solver itrations, to guarantee real time
+keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
+
+#imu parameters       The more accurate parameters you provide, the better performance
+acc_n: 0.16          # accelerometer measurement noise standard deviation. 
+gyr_n: 0.01         # gyroscope measurement noise standard deviation.     
+acc_w: 0.0001         # accelerometer bias random work noise standard deviation.  
+gyr_w: .6e-4       # gyroscope bias random work noise standard deviation.     
+g_norm: 9.81007     # gravity magnitude
+
+#unsynchronization parameters
+estimate_td: 0                      # online estimate time offset between camera and imu
+td: 0.0                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+
+#loop closure parameters
+load_previous_pose_graph: 0        # load and reuse previous pose graph; load from 'pose_graph_save_path'
+pose_graph_save_path: "~/output/pose_graph/" # save and load path
+save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0 
