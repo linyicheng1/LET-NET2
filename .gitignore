@@ -6,4 +6,7 @@ VINS/VINS-Fusion/weight/*.onnx
 VINS/VINS-Fusion/weight/*.pth
 VINS/VINS-Fusion/weight/*.engine
 VINS/CMakeLists.txt
-
+interface/python/tracking_results
+interface/cpp_tensorrt/build
+interface/python/weights
+interface/cpp_ncnn/build

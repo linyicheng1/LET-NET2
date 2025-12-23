@@ -1,0 +1,9 @@
+7767517
+7 7
+Input                    in0                      0 1 in0
+BinaryOp                 div_0                    1 1 in0 1 0=3 1=1 2=255.0
+Convolution              convrelu_0               1 1 1 2 0=8 1=3 11=3 12=1 13=1 14=1 2=1 3=1 4=1 5=1 6=216 9=1
+Convolution              convrelu_1               1 1 2 3 0=8 1=3 11=3 12=1 13=1 14=1 2=1 3=1 4=1 5=1 6=576 9=1
+Convolution              convrelu_2               1 1 3 4 0=16 1=1 11=1 12=1 13=1 14=0 2=1 3=1 4=0 5=0 6=128 9=1
+Convolution              convsigmoid_3            1 1 4 5 0=4 1=1 11=1 12=1 13=1 14=0 2=1 3=1 4=0 5=0 6=64 9=4
+BinaryOp                 mul_1                    1 1 5 out0 0=2 1=1 2=300.0

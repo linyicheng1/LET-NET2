@@ -123,6 +123,84 @@ python3 train.py
 
 ## Interface 
 
+### python
+
+Install dependencies
+
+```shell
+pip install torch torchvision opencv-python numpy
+```
+
+Run Demo
+
+```shell
+cd interface/python
+python3 demo.py -m /home/code/weight/letnet2.pth -i /home/code/interface/assets/nyu_snippet.mp4
+```
+
+### cpp (CPU)
+
+#### Prerequisites 
+
+- OpenCV (https://docs.opencv.org/3.4/d7/d9f/tutorial_linux_install.html)
+- ncnn (https://github.com/Tencent/ncnn/wiki/how-to-build#build-for-linux)
+
+> Notes: After installing ncnn, you need to change the path in CMakeLists.txt
+
+```
+set(ncnn_DIR "<your_path>/install/lib/cmake/ncnn" CACHE PATH "Directory that contains ncnnConfig.cmake")
+```
+
+#### Build 
+
+```
+mkdir build && cd build
+cmake .. && make -j4
+```
+
+#### Run demo 
+
+```
+./demo ../weights/letnet_480x640.ncnn.param ../weights/letnet_480x640.ncnn.bin ../../assets/nyu_snippet.mp4 
+```
+
+### export && tensorrt 
+
+Given that model export and GPU inference environments can be quite complex, we adopt Docker technology here to simplify this process.
+
+#### Docker Build 
+
+```shell
+cd LET-NET2/interface
+docker build . -t let2_interface
+```
+
+#### Run Docker 
+
+```shell
+docker run -it --gpus all -v ${CODE_DIR}/LET-NET2:/home/code -v ${DATA_DIR}/euroc/:/home/data/ let2_interface:latest 
+```
+
+#### Export models
+
+```shell
+cd /home/code/interface/python/
+python3.10 export.py --model /home/code/weight/letnet2.pth --height 480 --width 640
+```
+
+You can adjust the image dimensions to export various models.
+
+
+#### Tensorrt interface 
+
+```shell
+cd /home/code/interface/cpp_tensorrt/
+mkdir build && cd build/
+cmake .. && make -j4
+./demo_trt ../weights/letnet_480x640.engine ../../assets/nyu_snippet.mp4
+```
+
+
 
 ## VINS-Fusion Integration
 
